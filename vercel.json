@@ -1,4 +1,6 @@
 {
+  "framework": "nextjs",
+  "cleanUrls": true,
   "crons": [
     {
       "path": "/api/cron/sync",
