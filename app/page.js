@@ -69,14 +69,9 @@ export default function HomePage() {
           <span style={{ fontSize: '24px' }}>🛡️</span>
           <span style={{ fontWeight: '800', fontSize: '20px', letterSpacing: '-0.5px', color: '#ffffff' }}>Anti-Spam API</span>
         </div>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <a href="/playground" style={{ color: '#cbd5e1', textDecoration: 'none', fontWeight: '600', fontSize: '15px' }}>
-            Playground
-          </a>
-          <a href="/docs" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: '600', fontSize: '15px' }}>
-            API Docs →
-          </a>
-        </div>
+        <a href="/docs" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: '600', fontSize: '15px' }}>
+          API Docs →
+        </a>
       </nav>
 
       {/* Hero Section */}
