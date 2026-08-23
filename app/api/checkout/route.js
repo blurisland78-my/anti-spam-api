@@ -6,24 +6,19 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 export async function POST(request) {
   try {
     const { priceId } = await request.json();
+    const origin = request.headers.get('origin') || 'https://anti-spam-api.vercel.app';
 
     const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [
-        {
-          // Pass priceId from Stripe Dashboard OR use custom price metadata
-          price: priceId || process.env.STRIPE_PRICE_ID,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription', // Change to 'payment' for one-time purchases
-      success_url: `${request.headers.get('origin')}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${request.headers.get('origin')}/`,
+      line_items: [{ price: priceId, quantity: 1 }],
+      // Redirects to /success with session_id parameter
+      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/#pricing`,
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (error) {
-    console.error('Stripe Checkout Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
