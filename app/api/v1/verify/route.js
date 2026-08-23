@@ -1,16 +1,8 @@
 import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
-import { Ratelimit } from '@upstash/ratelimit';
 
-// Initialize Upstash Redis client
+// Initialize Upstash Redis client directly
 const redis = Redis.fromEnv();
-
-// Demo rate limiter (5 requests per minute per IP for playground demo)
-const demoRatelimit = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '1 m'),
-  prefix: '@upstash/ratelimit:demo',
-});
 
 export async function GET(request) {
   try {
@@ -18,7 +10,7 @@ export async function GET(request) {
     const email = searchParams.get('email');
     const apiKey = request.headers.get('x-api-key') || searchParams.get('apikey');
 
-    // 1. Validate Email Input
+    // 1. Validate Input
     if (!email) {
       return NextResponse.json(
         { error: 'Bad Request', message: 'Missing required query parameter: email' },
@@ -26,22 +18,18 @@ export async function GET(request) {
       );
     }
 
-    // Extract domain from provided email
     const domain = email.includes('@') ? email.split('@')[1].toLowerCase() : null;
 
-    // 2. Handle Interactive Playground Demo Key
+    // 2. Playground Demo Key
     if (apiKey === 'ak_demo_public') {
-      const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-      const { success } = await demoRatelimit.limit(ip);
-
-      if (!success) {
-        return NextResponse.json(
-          { error: 'Too Many Requests', message: 'Playground rate limit exceeded. Limit: 5 checks/min per IP.' },
-          { status: 429 }
-        );
+      let isDisposable = false;
+      try {
+        if (domain) {
+          isDisposable = Boolean(await redis.sismember('disposable_domains', domain));
+        }
+      } catch (e) {
+        console.error('Demo lookup error:', e);
       }
-
-      const isDisposable = domain ? Boolean(await redis.sismember('disposable_domains', domain)) : false;
 
       return NextResponse.json({
         email,
@@ -53,7 +41,7 @@ export async function GET(request) {
       });
     }
 
-    // 3. Handle Production API Key Authentication
+    // 3. Require API Key
     if (!apiKey) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'API key is missing. Pass x-api-key header or ?apikey=' },
@@ -61,57 +49,85 @@ export async function GET(request) {
       );
     }
 
-    // Safely look up key metadata checking multiple potential key formats in Redis
-    let keyData = await redis.hgetall(`apikey:${apiKey}`);
-    if (!keyData || Object.keys(keyData).length === 0) {
-      keyData = await redis.hgetall(`key:${apiKey}`);
-    }
-    if (!keyData || Object.keys(keyData).length === 0) {
-      keyData = await redis.hgetall(apiKey);
+    // 4. Robust Key Lookup Across Multiple Formats
+    let keyData = null;
+    
+    // Check apikey:prefix
+    try {
+      keyData = await redis.hgetall(`apikey:${apiKey}`);
+    } catch (e) {}
+
+    // Check key:prefix if first lookup returned empty
+    if (!keyData || typeof keyData !== 'object' || Object.keys(keyData).length === 0) {
+      try {
+        keyData = await redis.hgetall(`key:${apiKey}`);
+      } catch (e) {}
     }
 
-    // Null-safe status check
-    const isInactive = keyData && keyData.status === 'inactive';
-    const isNotFound = !keyData || Object.keys(keyData).length === 0;
+    // Check raw key if still empty
+    if (!keyData || typeof keyData !== 'object' || Object.keys(keyData).length === 0) {
+      try {
+        keyData = await redis.hgetall(apiKey);
+      } catch (e) {}
+    }
 
-    if (isNotFound || isInactive) {
+    // Validate key existence and active status
+    const keyExists = keyData && typeof keyData === 'object' && Object.keys(keyData).length > 0;
+    
+    if (!keyExists || keyData.status === 'inactive') {
       return NextResponse.json(
         { error: 'Forbidden', message: 'Invalid or inactive API key.' },
         { status: 403 }
       );
     }
 
-    // 4. Monthly Usage & Quota Tracking
-    const now = new Date();
-    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const usageKey = `usage:${apiKey}:${currentMonthStr}`;
-
-    const currentUsage = await redis.incr(usageKey);
-    if (currentUsage === 1) {
-      await redis.expire(usageKey, 60 * 24 * 60 * 60); // 60 days TTL
+    // 5. Monthly Usage Counter & Headers
+    let monthlyLimit = 25000;
+    if (keyData.monthlyLimit) {
+      monthlyLimit = parseInt(String(keyData.monthlyLimit), 10) || 25000;
     }
 
-    const monthlyLimit = keyData?.monthlyLimit ? parseInt(String(keyData.monthlyLimit), 10) : 25000;
-    const remaining = Math.max(0, monthlyLimit - currentUsage);
+    let remaining = monthlyLimit;
+    try {
+      const now = new Date();
+      const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const usageKey = `usage:${apiKey}:${currentMonthStr}`;
 
-    if (currentUsage > monthlyLimit) {
-      return NextResponse.json(
-        {
-          error: 'Quota Exceeded',
-          message: `Monthly request limit of ${monthlyLimit.toLocaleString()} reached for this billing cycle.`,
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit-Monthly': String(monthlyLimit),
-            'X-RateLimit-Remaining-Monthly': '0',
+      const currentUsage = await redis.incr(usageKey);
+      if (currentUsage === 1) {
+        await redis.expire(usageKey, 60 * 24 * 60 * 60); // 60 days TTL
+      }
+
+      remaining = Math.max(0, monthlyLimit - currentUsage);
+
+      if (currentUsage > monthlyLimit) {
+        return NextResponse.json(
+          {
+            error: 'Quota Exceeded',
+            message: `Monthly request limit of ${monthlyLimit.toLocaleString()} reached for this billing cycle.`,
           },
-        }
-      );
+          {
+            status: 429,
+            headers: {
+              'X-RateLimit-Limit-Monthly': String(monthlyLimit),
+              'X-RateLimit-Remaining-Monthly': '0',
+            },
+          }
+        );
+      }
+    } catch (usageErr) {
+      console.error('Usage counter error:', usageErr);
     }
 
-    // 5. Perform Disposable Domain Check
-    const isDisposable = domain ? Boolean(await redis.sismember('disposable_domains', domain)) : false;
+    // 6. Check Disposable Set
+    let isDisposable = false;
+    try {
+      if (domain) {
+        isDisposable = Boolean(await redis.sismember('disposable_domains', domain));
+      }
+    } catch (domainErr) {
+      console.error('Domain check error:', domainErr);
+    }
 
     return NextResponse.json(
       {
@@ -129,10 +145,10 @@ export async function GET(request) {
         },
       }
     );
-  } catch (error) {
-    console.error('API Verification Route Error:', error);
+  } catch (fatalError) {
+    console.error('Fatal API Route Error:', fatalError);
     return NextResponse.json(
-      { error: 'Internal Server Error', message: 'An unexpected server error occurred.' },
+      { error: 'Internal Server Error', message: fatalError.message || 'An unexpected error occurred.' },
       { status: 500 }
     );
   }
