@@ -2,121 +2,105 @@
 
 import { useState } from 'react';
 
-export default function Home() {
-  const [emailInput, setEmailInput] = useState('user@tempmail.com');
-  const [apiResponse, setApiResponse] = useState(null);
+export default function HomePage() {
   const [loading, setLoading] = useState(false);
 
-  // REPLACE THESE WITH YOUR EXACT STRIPE TEST PAYMENT LINKS
-  const PRO_STRIPE_LINK = 'https://buy.stripe.com/test_fZu28r5fE1hXavraik0sU00';
-  const GROWTH_STRIPE_LINK = 'https://buy.stripe.com/test_3cIbJ15fEgcR8nj4Y00sU01';
-
-  const handleTestApi = async () => {
+  const handleCheckout = async (priceId) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/v1/verify?email=${encodeURIComponent(emailInput)}`);
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      });
       const data = await res.json();
-      setApiResponse(data);
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Failed to initiate checkout.');
+      }
     } catch (err) {
-      setApiResponse({ error: 'Failed to connect to API endpoint' });
+      alert('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center px-4 py-16">
+    <div style={{ fontFamily: 'system-ui, sans-serif', color: '#111', maxWidth: '1000px', margin: '0 auto', padding: '40px 20px' }}>
+      {/* Header */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>🛡️ Anti-Spam API</h1>
+        <a href="/docs" style={{ color: '#0070f3', textDecoration: 'none', fontWeight: '600' }}>
+          API Docs →
+        </a>
+      </header>
+
       {/* Hero Section */}
-      <div className="max-w-4xl text-center space-y-4">
-        <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-full text-sm font-medium">
-          Edge-Accelerated • Sub-50ms Latency
-        </span>
-        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
-          Anti-Spam & Email Verification API
-        </h1>
-        <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto">
-          Protect your SaaS applications from disposable domains, fake signups, and automated bot accounts in real-time.
+      <section style={{ textAlign: 'center', marginBottom: '80px' }}>
+        <h2 style={{ fontSize: '48px', fontWeight: '800', lineHeight: '1.2', marginBottom: '20px' }}>
+          Block Fake Emails & Disposable Domains in Real-Time
+        </h2>
+        <p style={{ fontSize: '18px', color: '#555', maxWidth: '600px', margin: '0 auto 30px' }}>
+          High-performance, rate-limited email verification API powered by Redis and Vercel Edge. Protect your signup forms effortlessly.
         </p>
-      </div>
-
-      {/* Interactive API Playground */}
-      <div className="w-full max-w-2xl mt-12 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl">
-        <h2 className="text-xl font-bold mb-4">Try Live API Endpoint</h2>
-        <div className="flex gap-2 mb-4">
-          <input
-            type="email"
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-            placeholder="Enter email to check..."
-            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
-          />
-          <button
-            onClick={handleTestApi}
-            disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-2 rounded-lg transition disabled:opacity-50"
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+          <a
+            href="/docs"
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#000',
+              color: '#fff',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontWeight: '600',
+            }}
           >
-            {loading ? 'Checking...' : 'Run Test'}
-          </button>
+            Explore Interactive Docs
+          </a>
         </div>
+      </section>
 
-        {apiResponse && (
-          <div className="mt-4 bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm overflow-x-auto text-emerald-400">
-            <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
-          </div>
-        )}
-      </div>
-
-      {/* Pricing Grid */}
-      <div className="w-full max-w-5xl mt-20">
-        <h2 className="text-3xl font-bold text-center mb-12">Simple, Predictable Pricing</h2>
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+      {/* Pricing Section */}
+      <section style={{ borderTop: '1px solid #eaeaea', paddingTop: '60px' }}>
+        <h3 style={{ fontSize: '32px', textAlign: 'center', marginBottom: '40px' }}>Simple Pricing</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' }}>
           
-          {/* Pro Tier Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">Pro Tier</h3>
-              <div className="text-4xl font-extrabold my-4">$9 <span className="text-sm font-normal text-slate-400">/ month</span></div>
-              <ul className="space-y-3 text-slate-300 mb-8">
-                <li>✓ 15,000 API calls / mo</li>
-                <li>✓ Disposable email detection</li>
-                <li>✓ Upstash Redis edge acceleration</li>
-                <li>✓ Email support</li>
-              </ul>
-            </div>
-            <a
-              href={PRO_STRIPE_LINK}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-lg transition"
+          {/* Pro Plan */}
+          <div style={{ border: '2px solid #0070f3', borderRadius: '12px', padding: '30px', textAlign: 'center', position: 'relative' }}>
+            <span style={{ position: 'absolute', top: '-12px', right: '20px', backgroundColor: '#0070f3', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '12px' }}>
+              POPULAR
+            </span>
+            <h4 style={{ fontSize: '24px', margin: '0 0 10px 0' }}>Developer Pro</h4>
+            <p style={{ fontSize: '36px', fontWeight: 'bold', margin: '10px 0' }}>
+              $19 <span style={{ fontSize: '16px', fontWeight: 'normal', color: '#666' }}>/mo</span>
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '20px 0', textAlign: 'left', lineHeight: '2' }}>
+              <li>✅ 100,000 API Requests/mo</li>
+              <li>✅ Disposable Domain Detection</li>
+              <li>✅ Real-Time Upstash Redis Engine</li>
+              <li>✅ Instant API Key Generation</li>
+            </ul>
+            <button
+              onClick={() => handleCheckout('price_12345')} // Replace with your Stripe Price ID
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '12px',
+                backgroundColor: '#0070f3',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
             >
-              Subscribe to Pro
-            </a>
-          </div>
-
-          {/* Growth Tier Card */}
-          <div className="bg-slate-900 border-2 border-indigo-500 rounded-2xl p-8 flex flex-col justify-between relative">
-            <span className="absolute -top-3 right-6 bg-indigo-500 text-white text-xs px-3 py-1 rounded-full uppercase font-bold">Popular</span>
-            <div>
-              <h3 className="text-2xl font-bold">Growth Tier</h3>
-              <div className="text-4xl font-extrabold my-4">$29 <span className="text-sm font-normal text-slate-400">/ month</span></div>
-              <ul className="space-y-3 text-slate-300 mb-8">
-                <li>✓ 75,000 API calls / mo</li>
-                <li>✓ Priority edge route priority</li>
-                <li>✓ Real-time rate limiting</li>
-                <li>✓ 24/7 dedicated support</li>
-              </ul>
-            </div>
-            <a
-              href={GROWTH_STRIPE_LINK}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full text-center bg-indigo-500 hover:bg-indigo-400 text-white font-semibold py-3 rounded-lg transition"
-            >
-              Subscribe to Growth
-            </a>
+              {loading ? 'Processing...' : 'Get API Key'}
+            </button>
           </div>
 
         </div>
-      </div>
-    </main>
+      </section>
+    </div>
   );
 }
