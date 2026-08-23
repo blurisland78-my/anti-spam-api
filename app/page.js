@@ -82,7 +82,7 @@ export default function HomePage() {
               <li>✅ Instant API Key Generation</li>
             </ul>
             <button
-              onClick={() => handleCheckout('price_12345')} // Replace with your Stripe Price ID
+              onClick={() => handleCheckout('price_1U7SAnI58Njy18wLQFdJtgqm')} // Replace with your Stripe Price ID
               disabled={loading}
               style={{
                 width: '100%',
