@@ -5,7 +5,7 @@ import { useState } from 'react';
 export default function HomePage() {
   const [loading, setLoading] = useState(false);
 
-  // Replace these with your actual Stripe Price IDs from your Stripe Dashboard
+  // Replace priceId values with your real Stripe Price IDs
   const PRICING_PLANS = [
     {
       id: 'starter',
@@ -13,7 +13,7 @@ export default function HomePage() {
       price: '$9',
       period: '/mo',
       requests: '25,000 requests/mo',
-      priceId: 'price_STARTER_ID', // Replace with Stripe Price ID for $9
+      priceId: 'price_STARTER_ID',
       popular: false,
       features: ['25,000 API Requests/mo', 'Disposable Domain Detection', 'Upstash Redis O(1) Speed', 'Standard Support'],
     },
@@ -23,7 +23,7 @@ export default function HomePage() {
       price: '$19',
       period: '/mo',
       requests: '100,000 requests/mo',
-      priceId: 'price_PRO_ID', // Replace with Stripe Price ID for $19
+      priceId: 'price_PRO_ID',
       popular: true,
       features: ['100,000 API Requests/mo', 'Disposable Domain Detection', 'MX Record Verification', 'Priority Rate Limiting', '24/7 Email Support'],
     },
@@ -33,7 +33,7 @@ export default function HomePage() {
       price: '$29',
       period: '/mo',
       requests: '300,000 requests/mo',
-      priceId: 'price_ENTERPRISE_ID', // Replace with Stripe Price ID for $29
+      priceId: 'price_ENTERPRISE_ID',
       popular: false,
       features: ['300,000 API Requests/mo', 'All Pro Features Included', 'Dedicated Redis Cluster', 'Custom Rate Limits', 'Direct Developer Access'],
     },
@@ -69,9 +69,14 @@ export default function HomePage() {
           <span style={{ fontSize: '24px' }}>🛡️</span>
           <span style={{ fontWeight: '800', fontSize: '20px', letterSpacing: '-0.5px', color: '#ffffff' }}>Anti-Spam API</span>
         </div>
-        <a href="/docs" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: '600', fontSize: '15px' }}>
-          API Docs →
-        </a>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <a href="/playground" style={{ color: '#cbd5e1', textDecoration: 'none', fontWeight: '600', fontSize: '15px' }}>
+            Playground
+          </a>
+          <a href="/docs" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: '600', fontSize: '15px' }}>
+            API Docs →
+          </a>
+        </div>
       </nav>
 
       {/* Hero Section */}
@@ -88,15 +93,15 @@ export default function HomePage() {
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
           <a
             href="#pricing"
-            style={{ padding: '14px 28px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', transition: '0.2s' }}
+            style={{ padding: '14px 28px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: '600' }}
           >
             Get API Key
           </a>
           <a
-            href="/docs"
+            href="/playground"
             style={{ padding: '14px 28px', backgroundColor: '#1e293b', color: '#e2e8f0', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', border: '1px solid #334155' }}
           >
-            Interactive Docs
+            Try Live Demo
           </a>
         </div>
       </section>
