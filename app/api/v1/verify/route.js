@@ -1,38 +1,41 @@
 import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
-import { rateLimiter } from '@/lib/ratelimit'; // Ensure lib/ratelimit.js exists
+import { rateLimiter } from '@/app/lib/ratelimit';
 
 const redis = Redis.fromEnv();
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get('email');
+  const apiKey = request.headers.get('x-api-key') || searchParams.get('apikey');
 
-  // 1. Identify Client (IP Address or fallback)
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
-
-  // 2. Enforce Rate Limit (10 requests / 10 seconds)
-  const { success, limit, remaining, reset } = await rateLimiter.limit(`ratelimit_${ip}`);
-
-  if (!success) {
+  // 1. API Key Authentication
+  if (!apiKey) {
     return NextResponse.json(
-      {
-        error: 'Too Many Requests',
-        message: 'Rate limit exceeded. Please try again later.',
-      },
-      {
-        status: 429,
-        headers: {
-          'X-RateLimit-Limit': limit.toString(),
-          'X-RateLimit-Remaining': remaining.toString(),
-          'X-RateLimit-Reset': reset.toString(),
-          'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
-        },
-      }
+      { error: 'Unauthorized', message: 'API key is missing. Pass x-api-key header or ?apikey=' },
+      { status: 401 }
     );
   }
 
-  // 3. Input Validation
+  const keyRecord = await redis.get(`apikey:${apiKey}`);
+  if (!keyRecord) {
+    return NextResponse.json(
+      { error: 'Forbidden', message: 'Invalid or revoked API key.' },
+      { status: 403 }
+    );
+  }
+
+  // 2. Client Identifier (Rate limit per API key instead of IP)
+  const { success, limit, remaining, reset } = await rateLimiter.limit(`ratelimit_${apiKey}`);
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too Many Requests', message: 'Rate limit exceeded.' },
+      { status: 429, headers: { 'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString() } }
+    );
+  }
+
+  // 3. Email Input Check
   if (!email || !email.includes('@')) {
     return NextResponse.json(
       { error: 'Bad Request', message: 'Valid email query parameter is required.' },
@@ -40,7 +43,7 @@ export async function GET(request) {
     );
   }
 
-  // 4. Verification Logic
+  // 4. Redis Verification
   const domain = email.split('@')[1].toLowerCase();
   const isDisposable = await redis.sismember('disposable_domains', domain);
 
