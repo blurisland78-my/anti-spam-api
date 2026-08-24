@@ -1,50 +1,64 @@
 import { Redis } from '@upstash/redis';
-import dotenv from 'dotenv';
 
-dotenv.config({ path: '.env.local' });
-
+// Initialize Redis from environment variables
 const redis = Redis.fromEnv();
 
-// Popular disposable email domains
-const disposableDomains = [
-  'tempmail.com',
-  '10minutemail.com',
-  'guerrillamail.com',
-  'mailinator.com',
-  'dispostable.com',
-  'trashmail.com',
-  'yopmail.com',
-  'getnada.com',
-  'throwawaymail.com',
-  'temp-mail.org',
-  'sharklasers.com',
-  'guerrillamail.block',
-  'guerrillamail.net',
-  'guerrillamail.org',
-  'grr.la',
-  'guerrillamail.biz',
-  'spam4.me',
-  'disposablemail.com',
-  'maildrop.cc',
-  'crazymailing.com',
-  'burnermail.io',
-  'fakemailgenerator.com',
+// Raw text blocklists maintained on GitHub
+const SOURCES = [
+  'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf',
+  'https://raw.githubusercontent.com/martenson/disposable-email-domains/master/disposable_email_blocklist.conf',
 ];
 
-async function seed() {
-  console.log('Seeding disposable domains into Upstash Redis...');
-  
-  if (disposableDomains.length === 0) {
-    console.log('No domains to seed.');
+async function seedDisposableDomains() {
+  console.log('Fetching disposable domain blocklists...');
+  const domainSet = new Set();
+
+  for (const url of SOURCES) {
+    try {
+      const response = await fetch(url);
+      const text = await response.text();
+      const lines = text.split('\n');
+
+      for (const line of lines) {
+        const cleanDomain = line.trim().toLowerCase();
+        // Ignore empty lines and comment lines
+        if (cleanDomain && !cleanDomain.startsWith('#') && cleanDomain.includes('.')) {
+          domainSet.add(cleanDomain);
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to fetch from ${url}:`, err.message);
+    }
+  }
+
+  const uniqueDomains = Array.from(domainSet);
+  console.log(`Found ${uniqueDomains.length} unique disposable domains.`);
+
+  if (uniqueDomains.length === 0) {
+    console.log('No domains found. Exiting.');
     return;
   }
 
-  // Add domains to Upstash Redis set 'disposable_domains'
-  const added = await redis.sadd('disposable_domains', ...disposableDomains);
-  console.log(`Successfully added ${added} new domains to 'disposable_domains' set.`);
+  // Add baseline manual fallbacks
+  const fallbacks = ['tempmail.com', 'mailinator.com', '10minutemail.com', 'throwawaymail.com', 'guerrillamail.com'];
+  fallbacks.forEach((d) => domainSet.add(d));
 
-  const total = await redis.scard('disposable_domains');
-  console.log(`Total disposable domains in Redis: ${total}`);
+  // Upstash SADD in chunks of 500 to stay under payload size limits
+  const CHUNK_SIZE = 500;
+  const allDomains = Array.from(domainSet);
+
+  console.log('Pushing domains to Upstash Redis set: "disposable_domains"...');
+
+  for (let i = 0; i < allDomains.length; i += CHUNK_SIZE) {
+    const chunk = allDomains.slice(i, i + CHUNK_SIZE);
+    await redis.sadd('disposable_domains', ...chunk);
+    console.log(`Pushed ${i + chunk.length} / ${allDomains.length} domains...`);
+  }
+
+  const totalInRedis = await redis.scard('disposable_domains');
+  console.log(`✅ Seeding complete! Total domains in "disposable_domains" set: ${totalInRedis}`);
 }
 
-seed().catch(console.error);
+seedDisposableDomains().catch((err) => {
+  console.error('Fatal seeding error:', err);
+});
